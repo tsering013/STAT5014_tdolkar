@@ -6,27 +6,46 @@ date: "8/26/2020"
 output: pdf_document
 ---
 
+# Problem 1 
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+R is an open source, community built, programming platform.  Not only is there a plethora of useful web based resources, there also exists in-R tutorials.  As per the instructions, I did both of the Primers labeled as The Basics on Rstudio.cloud.
+
+# Problem 2
+
+After having the R environment setup, with the help of a basic understanding of R, I created this Markdown, saved the file to the directory containing the *README.md* file.
+
+### Part A
+
+Although I had a brief experience with R before, I have not studied it from the basics properly and therefore, had problems understanding codes during certain instances in the past. With this class, I hope to have a more innate understanding of the language and to have a certain level of comfort using it in the future. 
+Desired learning objectives:
+
+1. Better command and understanding of R 
+2. Better understanding of statistical simulations in R
+3. Hopefully, learn a bit about SAS 
+
+### Part B
+
+(1) *The density of the sum of two normals*:
+$$ If  [Re[z] < 0, \frac{e^{-\frac{z^2}{4}}}{2 \pi}, \int_{-\infty}^\infty \frac{E^{-\frac{y^2}{2}-\frac{1}{2}(-y+z)^2}}{2\pi}dy]$$
+(2) *The density of the sum of two Cauchys*:
+$$\frac{2}{\pi (-2I+z)(2I+z)}$$
+(3) *The density of the sum of two t's with 5 degrees of freedom*:
+$$\frac{400 \sqrt{5}(8400+120z^2+z^4)}{3\pi(20+z^2)^5}$$
+
+# Problem 3
+
+
+
+# Problem 4
+
+Following is a basic scatter plot:
+```{r}
+plot(ChickWeight$weight,ChickWeight$Time, cex = 0.2, xlab = "Weight", ylab = "Time", 
+     main = "ChickWeight")
 ```
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+Following is a histogram:
+```{r}
+hist(ChickWeight$weight, xlab = "Weight", ylab = "Frequency", 
+     main = "ChickWeight")
 ```
-
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
