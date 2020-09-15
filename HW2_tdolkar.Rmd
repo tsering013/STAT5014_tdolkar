@@ -1,0 +1,366 @@
+---
+title: "Homework 2"
+subtitle: "Due Wednesday Sep 16"
+author: "Tsering Dolkar"
+date: "9/6/2020"
+output: pdf_document
+header-includes: |
+    \usepackage{tikz,pgfplots}
+    \usepackage{fancyhdr}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, include = FALSE, eval = TRUE, cache = TRUE)
+library(data.table)
+library(tidyverse)
+```
+
+# Problem 1
+
+I finished the Primers titled “Work with Data” and “Tidy Your Data” on Rstudio cloud.
+
+# Problem 2
+
+Rmarkdown of this HW is opened. 
+
+# Problem 3
+
+In the lecture, there were two links to StackOverflow questions on why one should use version control.  In your own words, summarize your thoughts (2-3 sentences) on version control in your future work.  No penalties here if you say, useless!
+
+
+# Problem 4
+
+## a.
+
+We are looking for sensory data from five operators from Wu and Hamada's book:
+<http://www2.isye.gatech.edu/~jeffwu/wuhamadabook/data/Sensory.dat> 
+
+First of all, we will get the data from the link above:
+
+```{r sensorydata_import, cache=FALSE, include=TRUE, echo=TRUE}
+## getting http://www2.isye.gatech.edu/~jeffwu/wuhamadabook/data/Sensory.dat
+
+url <- "http://www2.isye.gatech.edu/~jeffwu/wuhamadabook/data/Sensory.dat"
+sensorydata_raw<- fread(url, data.table = FALSE, fill = TRUE, skip = 2, header = FALSE)
+saveRDS(sensorydata_raw, "sensorydata_raw.RDS")
+#Saves the object in it's native format without the name: When importing, it is easier for us.
+sensorydata_raw <- readRDS("sensorydata_raw.RDS")
+```
+
+Need to tidy the data, basic issue is we need items, operators and each of their sensory data on the 10 items are columns.
+
+```{r sensorydata_baseR, cache=FALSE, include=TRUE, echo=TRUE}
+#if the first condition is T, return the index value
+Na <- which(is.na(sensorydata_raw$V6),arr.ind=T)
+df <- cbind(rep(1:10, each = 2), sensorydata_raw[Na,])
+df$V6 <- NULL
+#create a clone data frame of the raw data, to get a better aligned raw data and not change the original raw data.
+new_sensorydata_raw <- sensorydata_raw
+new_sensorydata_raw[Na,] <- df
+colnames(new_sensorydata_raw) <- c("Item","Operator1","Operator2","Operator3","Operator4","Operator5")
+as.data.frame(head(new_sensorydata_raw))
+Operator <- stack(new_sensorydata_raw[,2:6])
+sensorydata_tidy_br <- data.frame(Item=rep(new_sensorydata_raw$Item, 5), as.character(Operator[,2]), as.numeric(Operator[,1]))
+colnames(sensorydata_tidy_br) <- c('Item', "Operator", "sensorydata")
+
+
+
+head(sensorydata_tidy_br)
+```
+
+We have converted the dataframes to tidy dataframes using the base functions. Here is a summary of the data:
+
+```{r summary_sensorydata_baseR, include=TRUE,echo=FALSE}
+knitr::kable(summary(new_sensorydata_raw))
+knitr::kable(summary(sensorydata_tidy_br))
+```
+
+Then our boxplot of Item to sensorydata is:
+```{r boxplot_sensorydata_baseR, include=TRUE,echo=FALSE}
+boxplot(sensorydata_tidy_br$sensorydata~sensorydata_tidy_br$Item, xlab = "Item", ylab = "Sensory Data",main="Sensory data from five operators")
+```
+
+```{r sensorydata_tidyverse, cache=FALSE, include=TRUE, echo=TRUE}
+#if the first condition is T, return the index value
+Na <- which(is.na(sensorydata_raw$V6),arr.ind=T)
+df <- cbind(rep(1:10, each = 2), sensorydata_raw[Na,])
+df$V6 <- NULL
+#create a clone data frame of the raw data, to get a better aligned raw data and not change the original raw data.
+new_sensorydata_raw <- sensorydata_raw
+new_sensorydata_raw[Na,] <- df
+colnames(new_sensorydata_raw) <- c("Item","Operator1","Operator2","Operator3","Operator4","Operator5")
+as.data.frame(head(new_sensorydata_raw))
+
+ sensorydata_tidy_tv <- 
+  new_sensorydata_raw %>%
+   gather(key = "Operators", value = "sensorydata", Operator1, Operator2, Operator3, Operator4,       Operator5)
+  
+  
+head(sensorydata_tidy_tv)
+```
+
+We have converted the dataframes to tidy dataframes using the tidyverse functions. Here is a summary of the data:
+
+```{r summary_sensorydata_tidyverse, include=TRUE, echo=FALSE}
+knitr::kable(summary(new_sensorydata_raw))
+knitr::kable(summary(sensorydata_tidy_tv))
+```
+
+Then our boxplot of Item to sensorydata is:
+```{r boxplot_sensorydata_tidyverse, include=TRUE,echo=FALSE}
+boxplot(sensorydata_tidy_tv$sensorydata~sensorydata_tidy_tv$Item, xlab = "Item", ylab = "sensorydata", main="Sensory data from five operators")
+```
+
+## b. 
+
+We are looking at the Gold Medal performance for Olympic Men's Long Jump, year is coded as 1900=0 from Wu and Hamada's book: <http://www2.isye.gatech.edu/~jeffwu/wuhamadabook/data/LongJumpData.dat> 
+
+First, we will get the data from the link above:
+
+```{r longjumpdata_import, cache=FALSE,include=TRUE, echo=TRUE}
+## getting http://www2.isye.gatech.edu/~jeffwu/wuhamadabook/data/LongJumpData.dat
+
+url <- "http://www2.isye.gatech.edu/~jeffwu/wuhamadabook/data/LongJumpData.dat"
+
+LongJumpData_raw<- fread(url, header = FALSE, fill = TRUE, skip = 1)
+saveRDS(LongJumpData_raw, "LongJumpData_raw.RDS")
+#Saves the object in it's native format without the name: When importing, it is easier for us.
+
+LongJumpData_raw <- readRDS("LongJumpData_raw.RDS")
+```
+
+Need to tidy the data, basic issues are Year and Longjump are columns, need to push them into column.
+
+
+```{r longjumpdata_baseR, cache=FALSE,include=TRUE, echo=TRUE}
+Year <- c(LongJumpData_raw$'V1', LongJumpData_raw$'V3', LongJumpData_raw$'V5', LongJumpData_raw$'V7')
+LongJumpData <- c(LongJumpData_raw$V2, LongJumpData_raw$V4, LongJumpData_raw$V6, LongJumpData_raw$V8)
+Year <- as.numeric(Year)
+LongJumpData <- as.numeric(LongJumpData)
+Year <- Year + 1900
+longjump_tidy_br <- cbind(Year, LongJumpData)
+longjump_tidy_br <- longjump_tidy_br[1:22,]
+longjump_tidy_br <- as.data.frame(longjump_tidy_br)
+
+head(longjump_tidy_br)
+```
+
+We have converted the dataframes to tidy dataframes using the base functions. Here is a summary of the data:
+
+```{r summary_longjumpdata_baseR, include=TRUE, echo=FALSE}
+knitr::kable(summary(longjump_tidy_br))
+```
+
+Then our plot of year to Gold Medal performance for Olympic Men’s Long Jump is:
+```{r plot_longjump_baseR, include=TRUE,echo=FALSE}
+plot(longjump_tidy_br$Year, longjump_tidy_br$LongJumpData,cex= 0.4, xlab = "Year", ylab = "LongJump Performance", main = "Gold Medal performance for Olympic Men’s Long Jump")
+```
+
+```{r longjumpdata_tidyverse, cache=FALSE,include=TRUE, echo=TRUE}
+lj_year<- 
+  LongJumpData_raw %>%
+    gather(key = "Vector2", value = "Year", 'V1','V3','V5','V7', convert = TRUE)%>%
+    select(Year)%>% 
+    slice(1:(n()-2))%>% #cuts off the NAs at the end
+    mutate(Year = 1900 + Year)
+lj_data<-
+  LongJumpData_raw %>%
+    gather(key = "Vector1", value = "LongJumpData", 'V2','V4','V6','V8', convert = TRUE) %>%
+    select(LongJumpData)%>% 
+    slice(1:(n()-2)) #cuts off the NAs at the end
+  
+longjump_tidy_tv <- cbind(lj_year, lj_data)
+head(longjump_tidy_tv)
+```
+We have converted the dataframes to tidy dataframes using the tidyverse functions. Here is a summary of the data:
+
+```{r summary_longjumpdata_tidyverse, include=TRUE, echo=FALSE}
+knitr::kable(summary(longjump_tidy_tv))
+```
+
+Then our plot of year to Gold Medal performance for Olympic Men’s Long Jump is:
+```{r plot_longjump_tidyverse, include=TRUE,echo=FALSE}
+plot(longjump_tidy_tv$Year, longjump_tidy_tv$LongJumpData,cex= 0.4, xlab = "Year", ylab = "LongJump Performance", main = "Gold Medal performance for Olympic Men’s Long Jump")
+```
+
+## c. 
+
+We are looking at brain weight (g) and body weight (kg) for 62 species from Wu and Hamada's book: <http://www2.isye.gatech.edu/~jeffwu/wuhamadabook/data/BrainandBodyWeight.dat> 
+
+First, we will get the data from the link above:
+
+```{r brainandbodyweight_import, cache=FALSE,include=TRUE, echo=TRUE}
+## getting http://www2.isye.gatech.edu/~jeffwu/wuhamadabook/data/BrainandBodyWeight.dat
+
+url <- "http://www2.isye.gatech.edu/~jeffwu/wuhamadabook/data/BrainandBodyWeight.dat"
+
+brainandbodyweight_raw<- fread(url, header = FALSE, fill = TRUE, skip = 1)
+saveRDS(brainandbodyweight_raw, "brainandbodyweight_raw.RDS")
+#Saves the object in it's native format without the name: When importing, it is easier for us.
+
+brainandbodyweight_raw <- readRDS("brainandbodyweight_raw.RDS")
+```
+
+
+Need to tidy the data, basic issues are brain weight and body weight are columns, need to push them into column.
+
+```{r brainandbodyweight_baseR, cache=FALSE,include=TRUE, echo=TRUE}
+bodyweight <- c(brainandbodyweight_raw$'V1', brainandbodyweight_raw$'V3', brainandbodyweight_raw$'V5')
+brainweight <- c(brainandbodyweight_raw$V2, brainandbodyweight_raw$V4, brainandbodyweight_raw$V6)
+bodyweight <- as.numeric(bodyweight)
+brainweight <- as.numeric(brainweight)
+brainandbodyweight_tidy_br <- cbind(bodyweight, brainweight)
+brainandbodyweight_tidy_br <- brainandbodyweight_tidy_br[1:62,]
+brainandbodyweight_tidy_br <- as.data.frame(brainandbodyweight_tidy_br)
+
+head(brainandbodyweight_tidy_br)
+
+```
+
+We have converted the dataframes to tidy dataframes using the base functions. Here is a summary of the data:
+
+```{r summary_brainandbodyweight_baseR, include=TRUE, echo=FALSE}
+knitr::kable(summary(brainandbodyweight_tidy_br))
+```
+
+Then our plot of Brain weight (g) and body weight (kg) for 62 species:
+```{r plot_brainandbodyweight_baseR, include=TRUE,echo=FALSE}
+
+plot(brainandbodyweight_tidy_br$bodyweight, brainandbodyweight_tidy_br$brainweight, xlab = "Body weight (g)", ylab = "Brain weight (kg)", main = "Brain weight (g) and body weight (kg) for 62 species")
+```
+
+```{r brainandbodyweight_tidyverse, cache=FALSE,include=TRUE, echo=TRUE}
+bodyweight<- 
+  brainandbodyweight_raw %>%
+    gather(key = "Vector2", value = "bodyweight", V1, V3, V5, convert = TRUE)%>%
+    select(bodyweight)%>%
+    slice(1:(n()-1)) #cuts off the NAs at the end
+
+brainweight<-
+  brainandbodyweight_raw %>%
+    gather(key = "Vector1", value = "brainweight", V2, V4, V6, convert = TRUE)%>%
+    select(brainweight)%>%
+    slice(1:(n()-1)) #cuts off the NAs at the end
+  
+brainandbodyweight_tidy_tv <- cbind(bodyweight, brainweight)
+  
+
+head(brainandbodyweight_tidy_tv)
+```
+We have converted the dataframes to tidy dataframes using the tidyverse functions. Here is a summary of the data:
+
+```{r summary_brainandbodyweight_tidyverse, include=TRUE, echo=FALSE}
+knitr::kable(summary(brainandbodyweight_tidy_tv))
+```
+
+Then our plot of Brain weight (g) and body weight (kg) for 62 species:
+```{r plot_brainandbodyweight_tidyverse, include=TRUE,echo=FALSE}
+
+plot(brainandbodyweight_tidy_tv$bodyweight, brainandbodyweight_tidy_tv$brainweight, xlab = "Body weight (g)", ylab = "Brain weight (kg)", main = "Brain weight (g) and body weight (kg) for 62 species")
+```
+
+## d. 
+
+We will look to triplicate measurements of tomato yield for two varieties of tomatos at three planting densities from Wu and Hamada's book: <http://www2.isye.gatech.edu/~jeffwu/wuhamadabook/data/tomato.dat> 
+
+First, we will get the data from the link above:
+
+```{r tomato_import, cache=FALSE,include=TRUE, echo=TRUE}
+## getting http://www2.isye.gatech.edu/~jeffwu/wuhamadabook/data/tomato.dat
+
+url <- "http://www2.isye.gatech.edu/~jeffwu/wuhamadabook/data/tomato.dat"
+
+tomato_raw<- fread(url)
+saveRDS(tomato_raw, "tomato_raw.RDS")
+#Saves the object in it's native format without the name: When importing, it is easier for us.
+
+tomato_raw <- readRDS("tomato_raw.RDS")
+```
+
+Need to tidy the data, basic issue is we need a column of different densities, two column of measurements for each type of tomato and a column called M number to keep track of which of 3 measurement for each density we are looking at. 
+
+```{r tomato_baseR, cache=FALSE, include=TRUE, echo=TRUE }
+#create a dataframe called tomato_tidy where there is 3 of the tomatovariety, the string of their measurements, and densities.
+tomato_tidy_br <- data.frame(TomatoVariety=rep(tomato_raw$V1, 3),
+                          stack(tomato_raw[,-1]))
+colnames(tomato_tidy_br) <- c("TomatoVariety", "V1", "Density")
+
+# we will now try to separate the string of measurement into individual measurements
+M <- data.frame(strsplit(head(tomato_tidy_br$V1), ','))
+colnames(M) <- c("1", "2", "3", "4", "5", "6")
+rownames(M) <- c("M1", "M2", "M3")
+M <- as.data.frame(t(M))
+
+#Separate the measurements into columns of measurements for Tomato type 1 and type 2
+Type1 <- as.data.frame(stack(M[c(1,3,5),]))
+colnames(Type1) <- c("Ife1", "M_number")
+# Since the measurement number is redundant, remove one column out of two M numbers
+Type1$M_number <- NULL
+Type2 <- as.data.frame(stack(M[c(2,4,6),]))
+colnames(Type2) <- c("PusaEarlyDwarf","M_number")
+# bind the two types together into one dataframe
+df <- as.data.frame(cbind(Type1, Type2))
+#change the type of the variables to reflect true type.
+df$Ife1 = as.numeric(df$Ife1)
+df$PusaEarlyDwarf=as.numeric(df$PusaEarlyDwarf)
+df1 <- as.data.frame(subset(df, select = c(Ife1, PusaEarlyDwarf)))
+df2 <- as.data.frame(subset(df, select = M_number))
+
+#create a dataframe with column of density values and dataframe with the rest of the information
+subset.df = data.frame(Density=rep(c(1000,2000,3000), 3))
+subset.df <- as.data.frame(subset.df)
+new.df <- data.frame(cbind(df2, df1))
+
+# bind the density, m number, and measurements of the two types of tomatoes and reoder the rows of the dataframe to look more like the tidyverse dataframe(since I did that first) for easy comparison reason.
+tomato_tidy_br <- as.data.frame(cbind(subset.df, new.df))
+colnames(tomato_tidy_br) <- c("Density", "M number", 'Ife1', "PusaEarlyDwarf")
+tomato_tidy1 <- data.frame(tomato_tidy_br[c(1,4,7),])
+tomato_tidy2 <- data.frame(tomato_tidy_br[c(2,5,8),])
+tomato_tidy3 <- data.frame(tomato_tidy_br[c(3,6,9),])
+tomato_tidy_br <- data.frame(rbind(tomato_tidy1,tomato_tidy2,tomato_tidy3))
+#the automated row index was showing up as out of order. For aesthetics, I removed it.
+rownames(tomato_tidy_br) <- NULL
+
+head(tomato_tidy_br)
+```
+
+We have converted the dataframes to tidy dataframes using the base functions. Here is a summary of the data:
+
+```{r summary_tomato_baseR, include=TRUE, echo=FALSE}
+knitr::kable(summary(tomato_tidy_br))
+```
+
+Then our plot of density to measurements of tomato yield for two varieties of tomatoes:
+```{r plot_tomato_baseR, include=TRUE,echo=FALSE}
+
+boxplot(tomato_tidy_br$Ife1~tomato_tidy_br$Density, xlab = "Density", ylab = "Tomato yield for Type I of tomato(Ife1)", main = "Measurements of tomato yield for tomato(Ife1)")
+```
+
+```{r tomato_tidyverse, cache = FALSE,include=TRUE, echo=TRUE}
+tomato_tidy_tv <- 
+  tomato_raw %>%
+  gather(key = "Density", value = "Measurements", -V1, convert = TRUE) %>%
+  rename(TomatoVariety = V1) %>%
+  separate(Measurements, into = c("M1", "M2", "M3"), sep = ',', convert = TRUE) %>%
+  gather(key = "M number", value = "Measurements", 3,4,5) %>%
+  spread(key = TomatoVariety, value = Measurements)
+
+head(tomato_tidy_tv)
+```
+We have converted the dataframes to tidy dataframes using the tidyverse functions.Here is a summary of the data:
+
+```{r summary_tomato_tidyverse, include=TRUE, echo=FALSE}
+knitr::kable(summary(tomato_tidy_tv))
+```
+
+## Problem 5
+
+Finish this homework by pushing your changes to your repo.  In general, your workflow for this should be:  
+
+1. git pull -- to make sure you have the most recent repo  
+2. In R: do some work  
+3. git add -- this tells git to track new files  
+4. git commit -- make message INFORMATIVE and USEFUL  
+5. git push -- this pushes your local changes to the repo  
+
+If you have difficulty with steps 1-5, git is not correctly or completely setup.  See me for help.
