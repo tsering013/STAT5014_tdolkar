@@ -7,10 +7,11 @@ output: pdf_document
 header-includes: |
     \usepackage{tikz,pgfplots}
     \usepackage{fancyhdr}
+
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, include = FALSE, eval = TRUE, cache = TRUE)
+knitr::opts_chunk$set(fig.pos = 'H', fig.align = "center", echo = TRUE, include = FALSE, eval = TRUE, cache = TRUE)
 library(data.table)
 library(tidyverse)
 ```
@@ -54,13 +55,15 @@ Need to tidy the data, basic issue is we need items, operators and each of their
 Na <- which(is.na(sensorydata_raw$V6),arr.ind=T)
 df <- cbind(rep(1:10, each = 2), sensorydata_raw[Na,])
 df$V6 <- NULL
-#create a clone data frame of the raw data, to get a better aligned raw data and not change the original raw data.
+#create a clone data frame of the raw data, to get a better aligned raw data 
+# and not change the original raw data.
 new_sensorydata_raw <- sensorydata_raw
 new_sensorydata_raw[Na,] <- df
 colnames(new_sensorydata_raw) <- c("Item","Operator1","Operator2","Operator3","Operator4","Operator5")
 as.data.frame(head(new_sensorydata_raw))
 Operator <- stack(new_sensorydata_raw[,2:6])
-sensorydata_tidy_br <- data.frame(Item=rep(new_sensorydata_raw$Item, 5), as.character(Operator[,2]), as.numeric(Operator[,1]))
+sensorydata_tidy_br <- data.frame(Item=rep(new_sensorydata_raw$Item, 5),
+                                  as.character(Operator[,2]), as.numeric(Operator[,1]))
 colnames(sensorydata_tidy_br) <- c('Item', "Operator", "sensorydata")
 
 
@@ -77,7 +80,9 @@ knitr::kable(summary(sensorydata_tidy_br))
 
 Then our boxplot of Item to sensorydata is:
 ```{r boxplot_sensorydata_baseR, include=TRUE,echo=FALSE}
-boxplot(sensorydata_tidy_br$sensorydata~sensorydata_tidy_br$Item, xlab = "Item", ylab = "Sensory Data",main="Sensory data from five operators")
+par(mfrow=c(1,1))
+boxplot(sensorydata_tidy_br$sensorydata~sensorydata_tidy_br$Item, col=rainbow(10), xlab = "Item", ylab = "Sensory Data",main="Sensory data from five operators")
+dev.off()
 ```
 
 ```{r sensorydata_tidyverse, cache=FALSE, include=TRUE, echo=TRUE}
@@ -85,7 +90,8 @@ boxplot(sensorydata_tidy_br$sensorydata~sensorydata_tidy_br$Item, xlab = "Item",
 Na <- which(is.na(sensorydata_raw$V6),arr.ind=T)
 df <- cbind(rep(1:10, each = 2), sensorydata_raw[Na,])
 df$V6 <- NULL
-#create a clone data frame of the raw data, to get a better aligned raw data and not change the original raw data.
+#create a clone data frame of the raw data, to get a better aligned raw data and not
+# change the original raw data.
 new_sensorydata_raw <- sensorydata_raw
 new_sensorydata_raw[Na,] <- df
 colnames(new_sensorydata_raw) <- c("Item","Operator1","Operator2","Operator3","Operator4","Operator5")
@@ -93,7 +99,8 @@ as.data.frame(head(new_sensorydata_raw))
 
  sensorydata_tidy_tv <- 
   new_sensorydata_raw %>%
-   gather(key = "Operators", value = "sensorydata", Operator1, Operator2, Operator3, Operator4,       Operator5)
+   gather(key = "Operators", value = "sensorydata", Operator1, Operator2, Operator3, Operator4, 
+          Operator5)
   
   
 head(sensorydata_tidy_tv)
@@ -108,7 +115,9 @@ knitr::kable(summary(sensorydata_tidy_tv))
 
 Then our boxplot of Item to sensorydata is:
 ```{r boxplot_sensorydata_tidyverse, include=TRUE,echo=FALSE}
-boxplot(sensorydata_tidy_tv$sensorydata~sensorydata_tidy_tv$Item, xlab = "Item", ylab = "sensorydata", main="Sensory data from five operators")
+# par(mar = c(10, 10, 0.002, 0.002))
+boxplot(sensorydata_tidy_tv$sensorydata~sensorydata_tidy_tv$Item, col=rainbow(10), xlab = "Item", ylab = "sensorydata", main="Sensory data from five operators")
+dev.off()
 ```
 
 ## b. 
@@ -152,8 +161,8 @@ knitr::kable(summary(longjump_tidy_br))
 ```
 
 Then our plot of year to Gold Medal performance for Olympic Men’s Long Jump is:
-```{r plot_longjump_baseR, include=TRUE,echo=FALSE}
-plot(longjump_tidy_br$Year, longjump_tidy_br$LongJumpData,cex= 0.4, xlab = "Year", ylab = "LongJump Performance", main = "Gold Medal performance for Olympic Men’s Long Jump")
+```{r plot_longjump_baseR, include=TRUE,echo=FALSE, warning = FALSE}
+plot(longjump_tidy_br$Year, longjump_tidy_br$LongJumpData,cex= 0.4, xlab = "Year", ylab = "LongJump Performance", main = "Gold Medal performance for Olympic Mens Long Jump")
 ```
 
 ```{r longjumpdata_tidyverse, cache=FALSE,include=TRUE, echo=TRUE}
@@ -179,8 +188,8 @@ knitr::kable(summary(longjump_tidy_tv))
 ```
 
 Then our plot of year to Gold Medal performance for Olympic Men’s Long Jump is:
-```{r plot_longjump_tidyverse, include=TRUE,echo=FALSE}
-plot(longjump_tidy_tv$Year, longjump_tidy_tv$LongJumpData,cex= 0.4, xlab = "Year", ylab = "LongJump Performance", main = "Gold Medal performance for Olympic Men’s Long Jump")
+```{r plot_longjump_tidyverse, include=TRUE,echo=FALSE,warning = FALSE}
+plot(longjump_tidy_tv$Year, longjump_tidy_tv$LongJumpData,cex= 0.4, xlab = "Year", ylab = "LongJump Performance", main = "Gold Medal performance for Olympic Mens Long Jump")
 ```
 
 ## c. 
@@ -227,6 +236,7 @@ Then our plot of Brain weight (g) and body weight (kg) for 62 species:
 ```{r plot_brainandbodyweight_baseR, include=TRUE,echo=FALSE}
 
 plot(brainandbodyweight_tidy_br$bodyweight, brainandbodyweight_tidy_br$brainweight, xlab = "Body weight (g)", ylab = "Brain weight (kg)", main = "Brain weight (g) and body weight (kg) for 62 species")
+dev.off()
 ```
 
 ```{r brainandbodyweight_tidyverse, cache=FALSE,include=TRUE, echo=TRUE}
@@ -256,7 +266,8 @@ knitr::kable(summary(brainandbodyweight_tidy_tv))
 Then our plot of Brain weight (g) and body weight (kg) for 62 species:
 ```{r plot_brainandbodyweight_tidyverse, include=TRUE,echo=FALSE}
 
-plot(brainandbodyweight_tidy_tv$bodyweight, brainandbodyweight_tidy_tv$brainweight, xlab = "Body weight (g)", ylab = "Brain weight (kg)", main = "Brain weight (g) and body weight (kg) for 62 species")
+plot(brainandbodyweight_tidy_tv$bodyweight, brainandbodyweight_tidy_tv$brainweight,xlab = "Body weight (g)", ylab = "Brain weight (kg)", main = "Brain weight (g) and body weight (kg) for 62 species")
+dev.off()
 ```
 
 ## d. 
@@ -280,7 +291,8 @@ tomato_raw <- readRDS("tomato_raw.RDS")
 Need to tidy the data, basic issue is we need a column of different densities, two column of measurements for each type of tomato and a column called M number to keep track of which of 3 measurement for each density we are looking at. 
 
 ```{r tomato_baseR, cache=FALSE, include=TRUE, echo=TRUE }
-#create a dataframe called tomato_tidy where there is 3 of the tomatovariety, the string of their measurements, and densities.
+#create a dataframe called tomato_tidy where there is 3 of the tomatovariety, the string of
+# their measurements, and densities.
 tomato_tidy_br <- data.frame(TomatoVariety=rep(tomato_raw$V1, 3),
                           stack(tomato_raw[,-1]))
 colnames(tomato_tidy_br) <- c("TomatoVariety", "V1", "Density")
@@ -311,8 +323,10 @@ subset.df = data.frame(Density=rep(c(1000,2000,3000), 3))
 subset.df <- as.data.frame(subset.df)
 new.df <- data.frame(cbind(df2, df1))
 
-# bind the density, m number, and measurements of the two types of tomatoes and reoder the rows of the dataframe to look more like the tidyverse dataframe(since I did that first) for easy comparison reason.
-tomato_tidy_br <- as.data.frame(cbind(subset.df, new.df))
+# bind the density, m number, and measurements of the two types of tomatoes and reoder the
+# rows of the dataframe to look more like the tidyverse dataframe(since I did that first)
+# for easy comparison reason.
+tomato_tidy_br <- cbind(subset.df, new.df)
 colnames(tomato_tidy_br) <- c("Density", "M number", 'Ife1', "PusaEarlyDwarf")
 tomato_tidy1 <- data.frame(tomato_tidy_br[c(1,4,7),])
 tomato_tidy2 <- data.frame(tomato_tidy_br[c(2,5,8),])
@@ -320,6 +334,7 @@ tomato_tidy3 <- data.frame(tomato_tidy_br[c(3,6,9),])
 tomato_tidy_br <- data.frame(rbind(tomato_tidy1,tomato_tidy2,tomato_tidy3))
 #the automated row index was showing up as out of order. For aesthetics, I removed it.
 rownames(tomato_tidy_br) <- NULL
+
 
 head(tomato_tidy_br)
 ```
@@ -332,8 +347,13 @@ knitr::kable(summary(tomato_tidy_br))
 
 Then our plot of density to measurements of tomato yield for two varieties of tomatoes:
 ```{r plot_tomato_baseR, include=TRUE,echo=FALSE}
+par(mfrow=c(1,2))
 
-boxplot(tomato_tidy_br$Ife1~tomato_tidy_br$Density, xlab = "Density", ylab = "Tomato yield for Type I of tomato(Ife1)", main = "Measurements of tomato yield for tomato(Ife1)")
+
+boxplot(tomato_tidy_br$Ife1~tomato_tidy_br$Density, col=blues9, xlab = "Density", ylab = "Ife1")
+boxplot(tomato_tidy_br$PusaEarlyDwarf~tomato_tidy_br$Density, col = rainbow(1), xlab = "Density", ylab = "PusaEarlyDwarf")
+title(main=print("Measurements of tomato yield for two types of tomatoes"),outer=T, line=-2)
+dev.off()
 ```
 
 ```{r tomato_tidyverse, cache = FALSE,include=TRUE, echo=TRUE}
@@ -342,8 +362,10 @@ tomato_tidy_tv <-
   gather(key = "Density", value = "Measurements", -V1, convert = TRUE) %>%
   rename(TomatoVariety = V1) %>%
   separate(Measurements, into = c("M1", "M2", "M3"), sep = ',', convert = TRUE) %>%
-  gather(key = "M number", value = "Measurements", 3,4,5) %>%
+  gather(key = "M number", value = "Measurements", 3,4,5)%>% 
   spread(key = TomatoVariety, value = Measurements)
+
+colnames(tomato_tidy_tv) <- c('Density', "M.number", "Ife1", "PusaEarlyDwarf")
 
 head(tomato_tidy_tv)
 ```
@@ -353,6 +375,16 @@ We have converted the dataframes to tidy dataframes using the tidyverse function
 knitr::kable(summary(tomato_tidy_tv))
 ```
 
+Then our plot of density to measurements of tomato yield for two varieties of tomatoes:
+```{r plot_tomato_tidyverse, include=TRUE,echo=FALSE}
+par(mfrow=c(1,2))
+
+
+boxplot(tomato_tidy_tv$Ife1~tomato_tidy_tv$Density, col=blues9, xlab = "Density", ylab = "Ife1")
+boxplot(tomato_tidy_tv$PusaEarlyDwarf~tomato_tidy_tv$Density, col = rainbow(1), xlab = "Density", ylab = "PusaEarlyDwarf")
+title(main=print("Measurements of tomato yield for two types of tomatoes"),outer=T, line=-2)
+dev.off()
+```
 ## Problem 5
 
 Finish this homework by pushing your changes to your repo.  In general, your workflow for this should be:  
