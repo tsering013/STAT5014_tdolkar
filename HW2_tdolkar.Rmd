@@ -65,7 +65,8 @@ Operator <- stack(new_sensorydata_raw[,2:6])
 sensorydata_tidy_br <- data.frame(Item=rep(new_sensorydata_raw$Item, 5),
                                   as.character(Operator[,2]), as.numeric(Operator[,1]))
 colnames(sensorydata_tidy_br) <- c('Item', "Operator", "sensorydata")
-
+sensorydata_tidy_br <- sensorydata_tidy_br[sort(sensorydata_tidy_br$Operator,decreasing=F,
+                                                index.return=T)[[2]],]
 
 
 head(sensorydata_tidy_br)
@@ -85,21 +86,30 @@ boxplot(sensorydata_tidy_br$sensorydata~sensorydata_tidy_br$Item, col=rainbow(10
 ```
 
 ```{r sensorydata_tidyverse, cache=FALSE, include=TRUE, echo=TRUE}
-#if the first condition is T, return the index value
-Na <- which(is.na(sensorydata_raw$V6),arr.ind=T)
-df <- cbind(rep(1:10, each = 2), sensorydata_raw[Na,])
-df$V6 <- NULL
-#create a clone data frame of the raw data, to get a better aligned raw data and not
-# change the original raw data.
-new_sensorydata_raw <- sensorydata_raw
-new_sensorydata_raw[Na,] <- df
-colnames(new_sensorydata_raw) <- c("Item","Operator1","Operator2","Operator3","Operator4","Operator5")
-as.data.frame(head(new_sensorydata_raw))
+# filter the rows with NAs, remove the last column and create a dataframe df1
+df1 <- sensorydata_raw %>%
+filter(is.na(sensorydata_raw$V6)) %>%
+  select(V1:V5)
+colnames(df1) <- c("Operator1", "Operator2", "Operator3","Operator4","Operator5")
 
+#filter the rows without NAs, remove the first column that stores the Item numbers
+#and create a dataframe df2
+df2 <- sensorydata_raw %>%
+  filter(!is.na(V6)) %>%
+  select(V2:V6)
+colnames(df2) <- c("Operator1", "Operator2", "Operator3","Operator4","Operator5")
+
+#create the new raw with repeating item and union
+new_sensorydata_raw <- data.frame(cbind(c(rep(1:10, each=2), 1:10), union(df1,df2)))
+colnames(new_sensorydata_raw) <- c("Item", "Operator1", "Operator2", "Operator3","Operator4","Operator5")
+
+#tidy the new raw data.
  sensorydata_tidy_tv <- 
   new_sensorydata_raw %>%
-   gather(key = "Operators", value = "sensorydata", Operator1, Operator2, Operator3, Operator4, 
-          Operator5)
+   gather(key = "Operator", value = "sensorydata", Operator1, Operator2, Operator3, Operator4, 
+          Operator5) %>%
+   arrange(Operator, Item)
+ 
   
   
 head(sensorydata_tidy_tv)
