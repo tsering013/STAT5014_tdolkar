@@ -1,12 +1,13 @@
 ---
 title: "HW3_tdolkar"
-subtitle: "Due Wednesday Sep 30"
 author: "Tsering Dolkar"
 date: "9/24/2020"
-output: pdf_document
-header-includes: 
-    \usepackage{tikz,pgfplots}
-    \usepackage{fancyhdr}
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+subtitle: Due Wednesday Sep 30
+header-includes: \usepackage{tikz,pgfplots} \usepackage{fancyhdr}
 ---
 
 ```{r setup, include=FALSE}
@@ -15,18 +16,20 @@ library(data.table)
 library(tidyverse)
 library(ggplot2)
 library(kableExtra)
+library(microbenchmark)
+library(multipanelfigure)
 ```
 
-# Problem 1
+## Problem 1
 I did primer on Rstudio cloud.
 
-# Problem 2
+## Problem 2
 Created the Rmd file
 
-# Problem 3
+## Problem 3
 
 
-# Problem 4
+## Problem 4
 
 
 ## Problem 5
@@ -99,41 +102,63 @@ for(i in 1:13){
 summary_statistics <- data.frame(rep(c("Mean_dev1", "Mean_dev2", "SD_dev1", "SD_dev2", 
                                        "Cor_dev1_dev2"), 13), summary_statistics)
 colnames(summary_statistics) <- c('V1','Observer','V3')
-new_summary_statistics <- summary_statistics %>%
+summary_statistics <- summary_statistics %>%
                          spread(key = V1, value = V3)
 # reorder by column name
-new_summary_statistics <- new_summary_statistics[c("Observer", "Mean_dev1", "Mean_dev2", 
+summary_statistics <- summary_statistics[c("Observer", "Mean_dev1", "Mean_dev2", 
                                                    "SD_dev1", "SD_dev2", "Cor_dev1_dev2")]
-new_summary_statistics <- kable(new_summary_statistics)
+summary_statistics <- kable(summary_statistics)
 ```
 
-```{r boxplot_summary, include=TRUE,echo=FALSE}
-par(mfrow=c(2,2))
+```{r boxplot_summary, include = TRUE}
 
-boxplot(observations$dev1~observations$Observer, col = rainbow(13), xlab = "Observer", ylab = "Dev 1")
-
-boxplot(observations$dev2~observations$Observer, col = rainbow(13), xlab = "Observer", ylab = "Dev 2")
-title(print("boxplot summary of devices"),outer=T, line=-2)
-```
-
-```{r violin_plot_summary, include=TRUE,echo=FALSE}
-par(mfrow=c(2,2))
 observations$Observer <- as.factor(observations$Observer)
-observations %>%
+
+dev1 <- observations %>%
   ggplot(aes(x = Observer, y = dev1, colour = Observer)) +
-  geom_violin(trim = F) + 
+  geom_boxplot() +
+  labs(title = "boxplot summary of dev 1", x="Observer", y = "Dev 1") +
+  theme_classic()
+
+dev2 <- observations %>%
+  ggplot(aes(x = Observer, y = dev2, colour = Observer)) +
+  geom_boxplot() +
+  labs(title = "boxplot summary of dev 2", x="Observer", y = "Dev 2") +
+  theme_classic()
+
+figure1 <- multi_panel_figure(columns = 1, rows = 2, panel_label_type = "none")
+figure1 %<>%
+  fill_panel(dev1, column = 1, row = 1) %<>%
+  fill_panel(dev2, column = 1, row = 2) 
+figure1
+```
+
+```{r violin_plot_summary, include = TRUE}
+
+dev1 <- observations %>%
+  ggplot(aes(x = Observer, y = dev1, colour = Observer)) +
+  geom_violin(trim = F) +
   geom_boxplot(width=0.1) +
+  stat_summary(fun.y=median, geom="point", size=2, color="red") +
   labs(title = "violinplot summary of dev 1", x="Observer", y = "Dev 1") +
   theme_classic()
 
-observations %>%
+dev2 <- observations %>%
   ggplot(aes(x = Observer, y = dev2, colour = Observer)) +
   geom_violin(trim = F) + 
   geom_boxplot(width=0.1) +
+  stat_summary(fun.y=median, geom="point", size=2, color="red") +
   labs(title = "violinplot summary of dev 2", x="Observer", y = "Dev 2") +
   theme_classic()
 
+figure1 <- multi_panel_figure(columns = 1, rows = 2, panel_label_type = "none")
+figure1 %<>%
+  fill_panel(dev1, column = 1, row = 1) %<>%
+  fill_panel(dev2, column = 1, row = 2) 
+figure1
 ```
+
+
 ```{r scatter_plot_summary, include=TRUE,echo=FALSE}
 par(mfrow=c(1,1))
 observations$Observer <- as.factor(observations$Observer)
@@ -141,4 +166,118 @@ observations %>%
   ggplot(aes(x=dev1,y=dev2)) + geom_point() + facet_wrap(Observer~.)
 
 ```
+## Problem 6
+
+```{r Riemann_Sum, include=T}
+R_sum <- function(a, b, n){
+  x <- double(length = n)
+  dx <- (b - a)/n
+  for(i in 1:n){
+    x[i] <- a + dx*i
+  }
+  return(sum(dx * exp(-x^2/2)))
+}
+```
+
+```{r main, include=T}
+# how_many_parts <- seq(from = 1, to = 1000000, by = 1)
+# a <- 0
+# b <- 1
+# track_RS <- data.frame()
+# report <- data.frame()
+# 
+# integrand <- function(x) {exp((-x^2)/2)}
+# integral_value <- integrate(integrand, lower = 0, upper = 1)
+# integral_value <- integral_value$value
+# 
+# # put length of seq instead of 5
+# for(i in 1:length(how_many_parts)){
+#   RS <- R_sum(a, b, how_many_parts[i])
+#   slice_width <- ((b-a)/how_many_parts[i])
+#   track_RS <- rbind(track_RS, c(slice_width, RS))
+#   # if riemann sum is within e^(-6) points from the integral value, store it in 
+#   # dataframe report.
+#   if(abs(RS - integral_value) <= 1e-06){
+#   report <- rbind(report, c(slice_width, RS))
+#   }
+# }
+# colnames(track_RS) <- c("slice_width", "Riemann_Sum")
+# if(length(report) > 0){
+#   colnames(report) <- c("slice_width", "Riemann_Sum")
+# }
+# 
+# 
+# #Report the various slice widths used, the sum calculated, and the slice 
+# #width necessary to obtain an answer within $1e^{-6}$ of the analytical solution.
+# 
+# summary(report)
+```
+
+The width necessary to obtain an answer within $1e^{-6}$ of the analytical solution for 
+me was the min value of slice_width. At that slice_width, I get the min value of Riemann_Sum. I could make the answer more accurate by increasing the to value in seq(how_many_parts). 
+
+## Problem 7
+
+```{r Newton_Method, include=T}
+N_method <- function(x1 = -5){
+  #function takes in a first approximation of the root x0 of the function 3^x-sin(x)+cos(5*x)
+  #function uses Newton's method of approximate the root of the function
+  #function terminates when successive estimates are within 1e-04 of each other
+  seq <- 100
+  x <- double(0)
+  x[1] <-  x1
+  # f <- 3^x- sin(x) + cos(5*x)
+  # f_diff <- 3^x * log(3) - cos(x) - sin(5 * x) * 5
+  for(i in 2:seq){
+    if(3^x[i-1] * log(3) - cos(x[i-1]) - sin(5 * x[i-1]) * 5 == 0){
+    stop("choose a new starting place")
+    }
+    x[i] <- x[i-1] - ((3^x[i-1]- sin(x[i-1]) + cos(5*x[i-1]))/
+                          (3^x[i-1] * log(3) - cos(x[i-1]) - sin(5 * x[i-1]) * 5))
+    if (abs(x[i]-x[i-1])<1e-04){
+      break
+    }
+  }
+  paste0("For the initial estimate of ", x[1])
+  paste0("Xn approaches 0 at ", tail(x,1))
+  plot(x, type = 'b', col = 'purple')
+}
+```
+
+
+```{r body, include=T}
+# we have: 
+#f <- expression(3^x- sin(x) + cos(5*x))
+init_x <- c(-28, -24, -18, -6)
+for(i in 1:length(init_x)){
+  N_method(init_x[i])
+}
+```
+
+## Problem 8
+
+```{r compare, include=T}
+#Given simulated data from question 
+X <- cbind(rep(1,100),rep.int(1:10,time=10))
+beta <- c(4,5)
+y <- X%*%beta + rnorm(100)
+
+# precalculation and vectors for SST using for_loop:
+y_bar <- mean(y)
+SST <- double(0)
+
+# required values and matrices for SST using matrix operation:
+n <- 100
+J <- matrix(1, nrow = n, ncol = n)
+I <- diag(x = 1, nrow = n, ncol = n)
+
+times <- microbenchmark(SST1 <- {for(i in 1:length(y)){ SST[i] <- (y[i] - y_bar)^2};sum(SST)},
+               SST2 <- {t(y)%*%(I - (1/n)*J)%*%y}, times = 100, unit = "ms")
+print(times)
+print(SST1)
+print(SST2)
+```
+
+
+
 
