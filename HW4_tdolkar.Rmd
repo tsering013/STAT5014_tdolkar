@@ -15,7 +15,13 @@ knitr::opts_chunk$set(fig.pos = 'H', fig.align = "center", echo = TRUE, include 
 library(data.table)
 library(tidyverse)
 library(ggplot2)
-library(microbenchmark)
+library(quantmod)
+library(downloader)
+library(tictoc)
+library(foreach)
+library(parallel)
+library(mapproj)
+library(doParallel)
 library(multipanelfigure)
 ```
  For each assignment, turn in by the due date/time.  Late assignments must be arranged prior to submission.  In every case, assignments are to be typed neatly using proper English in Markdown.  
@@ -28,7 +34,7 @@ R Vector/matrix manipulations and math, speed considerations
 R's Apply family of functions
 Parallel computing in R, foreach and dopar
 
-## Problem 2: Using the dual nature to our advantage
+## Problem 1: Using the dual nature to our advantage
 
 Sometimes using a mixture of true matrix math plus component operations cleans up our code giving better readibility.  Suppose we wanted to form the following computation:
 
@@ -45,36 +51,119 @@ Where $h_0(x) = \Theta_0 + \Theta_1x$.
 
 Given $\mathbf{X}$ and $\vec{h}$ below, implement the above algorithm and compare the results with lm(h~0+$\mathbf{X}$).  State the tolerance used and the step size, $\alpha$.
 
-```{r eval=F, echo=T, include=T}
-    set.seed(1256)
-    theta <- as.matrix(c(1,2),nrow=2)
-    X <- cbind(1,rep(1:10,10))
-    h <- X%*%theta+rnorm(100,0,0.2)
+```{r linear_model_given, eval=F, echo=T, include=T, warning=F}
+
+set.seed(1256)
+
+theta_curr <- double()
+theta_prev <- double()
+
+theta_curr <- as.matrix(c(1,2),nrow=2)
+theta_prev <- as.matrix(c(0,0),nrow=2)
+  
+tolerance = 0.00000001
+alpha = 0.00001
+m = 100
+
+X <- cbind(1,rep(1:10,10))
+h <- X%*%theta_curr+rnorm(100,0,0.2)
+
 ```
 
 
-## Problem 3
+```{r use_algorithm, eval=F, echo=T, include=T, warning=F}
+i = 1
+while(abs(theta_curr[1] - theta_prev[1]) > tolerance && abs(theta_curr[2] - theta_prev[2]) > tolerance){
+  theta_prev <- theta_curr
+  theta_curr <- theta_curr - alpha * ((1/m) * t(X) %*% (X %*% theta_curr - h))
+}
+theta_curr
 
-The above algorithm is called Gradient Descent.  This algorithm, like Newton's method, has "hyperparameters" that are determined outside the algorithm and there are no set rules for determing what settings to use.  For gradient descent, you need to set a start value, a step size and tolerance.  
+#true parameter
+lm(h~0+X)
+```
 
-### Part a. Using a step size of $1e^{-7}$ and tolerance of $1e^{-9}$, try 10000 different combinations of start values for $\beta_0$ and $\beta_1$ across the range of possible $\beta$'s +/-1 from true determined in Problem 2, making sure to take advantages of parallel computing opportunities.  In my try at this, I found starting close to true took 1.1M iterations, so set a stopping rule for 5M.  Report the min and max number of iterations along with the starting values for those cases.  Also report the average and stdev obtained across all 10000 $\beta$'s.
+## Problem 2
 
-### Part b. What if you were to change the stopping rule to include our knowledge of the true value?  Is this a good way to run this algorithm?  What is a potential problem?
+The above algorithm is called Gradient Descent. This algorithm, like Newton's method, has "hyperparameters" that are determined outside the algorithm and there are no set rules for determing what settings to use.  For gradient descent, you need to set a start value, a step size and tolerance.  
 
-### Part c. What are your thoughts on this algorithm?
+### a. Using a step size of $1e^{-7}$ and tolerance of $1e^{-9}$, try 10000 different combinations of start values for $\beta_0$ and $\beta_1$ across the range of possible $\beta$'s +/-1 from true determined in Problem 1, making sure to take advantages of parallel computing opportunities.  In my try at this, I found starting close to true took 1.1M iterations, so set a stopping rule for 5M.  Report the min and max number of iterations along with the starting values for those cases.  Also report the average and stdev obtained across all 10000 $\beta$'s.
+
+```{r G_descent_iter, include=T, warning=F}
+
+g_descent <- function(theta, h, X){
+  theta_curr <- double()
+  theta_prev <- double()
+  
+  theta_curr <- theta
+  theta_prev <- as.matrix(c(theta[1] + 1, theta[2] + 1), nrow = 2)
+  m <- length(X[,1])
+  
+  count <- 0
+  step_size <- 1e-07
+  tolerance <- 1e-09
+  
+  while(abs(theta_curr[1] - theta_prev[1]) > tolerance && 
+        abs(theta_curr[2] - theta_prev[2]) > tolerance){
+    theta_prev <- theta_curr
+    theta_curr <- theta_curr - step_size * ((1/m) * t(X) %*% (X %*% theta_curr - h))
+    count <- count + 1
+    if(count > 5000000){
+      break
+    }
+  }
+  return(c(theta_curr, count))
+} 
 
 
-## Problem 4: Inverting matrices
+theta <- as.matrix(c(1,2),nrow=2)
+X <- cbind(1,rep(1:10,10))
+h <- X%*%theta+rnorm(100,0,0.2)
+p_startvalue <- cbind(runif(10000, min = 0, max = 2), runif(10000, min = 1, max = 3))
 
-Ok, so John Cook makes some good points, but if you want to do:
+cores <- max(1, detectCores() - 1)
+cl <- makeCluster(cores)
+makeForkCluster(cores)
+registerDoParallel(cl)
 
+results <- foreach(i = 1:2, .combine = rbind) %dopar%{
+  g_descent(p_startvalue[i,],h,X)
+}
+colnames(results) <- c("hbeta0","hbeta1","num_iter")
+stopCluster(cl)
+```
+
+
+### b. What if you were to change the stopping rule to include our knowledge of the true value?  Is this a good way to run this algorithm?  What is a potential problem?
+
+
+
+### c. What are your thoughts on this algorithm?
+
+I think this is a pretty good algorithm to predict the parameters of a linear model. Although it is not as efficient and fast as the lm() function, I imagine this was one of the main go to method for estimating parameter of linear model in earlier times.  
+
+## Problem 3: Inverting matrices
+
+According to John Cook, if you want to solve:
+$(X'X)\hat\beta = X'\bf{y}$, even though books might write the problem as,
 \begin{equation*}
 \hat\beta = (X'X)^{-1}X'\underline{y}
 \end{equation*}
+but that doesn’t mean they expect you to calculate it that way. The first time you solve $(X'X)\hat\beta = X'\bf{y}$, you factor $(X'X)$ and save that factorization. Then when you solve for the next $X'\bf{y}$, the answer comes much faster. (Factorization takes $O(n^3)$ operations. But once the matrix is factored, solving $(X'X)\hat\beta = X'\bf{y}$ takes only $O(n^2)$ operations. Suppose $n = 1,000$. This says that once you’ve solved $(X'X)\hat\beta = X'\bf{y}$ for a new $X'\bf{y}$ 1,000 times faster than the first one.
 
-what are you to do??  Can you explain what is going on?
+```{r time_compare, include=T, warning=F}
+#invert that matrix
+time1 <- system.time(print(solve(t(X)%*%X)%*%t(X)%*%h))
 
-## Problem 5: Need for speed challenge
+time1
+
+#don't invert that matrix
+time2 <- system.time(print(solve(t(X)%*%X, t(X)%*%h)))
+
+time2
+```
+
+## Problem 4: Need for speed challenge
 
 In this problem, we are looking to compute the following:
 
@@ -84,174 +173,602 @@ y = p + A B^{-1} (q - r)
 
 Where A, B, p, q and r are formed by:
 
-```{r data, echo=T, eval=F, include=T}
-    set.seed(12456) 
-    
-    G <- matrix(sample(c(0,0.5,1),size=16000,replace=T),ncol=10)
-    R <- cor(G) # R: 10 * 10 correlation matrix of G
-    C <- kronecker(R, diag(1600)) # C is a 16000 * 16000 block diagonal matrix
-    id <- sample(1:16000,size=932,replace=F)
-    q <- sample(c(0,0.5,1),size=15068,replace=T) # vector of length 15068
-    A <- C[id, -id] # matrix of dimension 932 * 15068
-    B <- C[-id, -id] # matrix of dimension 15068 * 15068
-    p <- runif(932,0,1)
-    r <- runif(15068,0,1)
-    C<-NULL #save some memory space
+```{r speed_challenge_data, echo=T, include=T, warning=F}
+
+set.seed(12456) 
+
+G <- matrix(sample(c(0,0.5,1),size=16000,replace=T),ncol=10)
+R <- cor(G) # R: 10 * 10 correlation matrix of G
+C <- kronecker(R, diag(1600)) # C is a 16000 * 16000 block diagonal matrix
+id <- sample(1:16000,size=932,replace=F)
+q <- sample(c(0,0.5,1),size=15068,replace=T) # vector of length 15068
+A <- C[id, -id] # matrix of dimension 932 * 15068
+B <- C[-id, -id] # matrix of dimension 15068 * 15068
+p <- runif(932,0,1)
+r <- runif(15068,0,1)
+C<-NULL #save some memory space
 ```
 
-Part a.
+### a.
 
 How large (bytes) are A and B?  Without any optimization tricks, how long does the it take to calculate y?  
 
-Part b.
+```{r straight_forward, include=T, warning=F}
+size_A <- object.size(A)
+print(size_A)
+size_B <- object.size(B)
+print(size_B)
 
-How would you break apart this compute, i.e., what order of operations would make sense?  Are there any mathmatical simplifications you can make?  Is there anything about the vectors or matrices we might take advantage of?
+#set up the variables for matrix operation
+q <- as.vector(q)
+r <- as.vector(r)
+p <- as.vector(p)
 
-Part c.
+naive_ytime <- system.time({p + A %*% solve(B) %*% (q - r)})
 
-Use ANY means (ANY package, ANY trick, etc) necessary to compute the above, fast.  Wrap your code in "system.time({})", everything you do past assignment "C <- NULL".
-
-
-
-
-## Problem 3  
-
-a. Create a function that computes the proportion of successes in a vector.  Use good programming practices.
-
-b. Create a matrix to simulate 10 flips of a coin with varying degrees of "fairness" (columns = probability) as follows:
-
-```{r echo=T, include=T, eval=F}
-    set.seed(12345)
-    P4b_data <- matrix(rbinom(10, 1, prob = (31:40)/100), nrow = 10, ncol = 10, byrow = FALSE)
+print(naive_ytime)
 ```
 
-c. Use your function in conjunction with apply to compute the proportion of success in P4b_data by column and then by row.  What do you observe?  What is going on?
+### b.
 
-d. You are to fix the above matrix by creating a function whose input is a probability and output is a vector whose elements are the outcomes of 10 flips of a coin.  Now create a vector of the desired probabilities.  Using the appropriate apply family function, create the matrix we really wanted above.  Prove this has worked by using the function created in part a to compute and tabulate the appropriate marginal successes.
+How would you break apart this compute, i.e., what order of operations would make sense?  Are there any mathematical simplifications you can make?  Is there anything about the vectors or matrices we might take advantage of?
 
-## Problem 4
+```{r compute_y_faster, include=T, warning=F}
+library(Matrix)
 
-In Homework 4, we had a dataset we were to compute some summary statistics from.  The description of the data was given as "a dataset which has multiple repeated measurements from two devices by thirteen Observers".  Where the device measurements were in columns "dev1" and "dev2".  Reimport that dataset, change the names of "dev1" and "dev2" to x and y and do the following:
+y_time <- system.time({p + A%*% (solve(B) %*% (q-r))})
 
-\begin{enumerate}
-  \item create a function that accepts a dataframe of values, title, and x/y labels and creates a scatter plot
-  \item use this function to create:
-  \begin{enumerate}
-    \item a single scatter plot of the entire dataset
-    \item a seperate scatter plot for each observer (using the apply function)
-  \end{enumerate}
-\end{enumerate}
-  
+print(y_time)
+```
 
-## Problem 5
+### c.
+
+Use ANY means (ANY package, ANY trick, etc) necessary to compute the above, fast.  Wrap your code in "system.time({})", everything you do past assignment "C <- NULL".'
+
+```{r compute_y_with_package, include=T, warning=F}
+# library(bigmemory)
+# 
+# fast_ytime <- system.time({p+as.big.matrix(A)%*%(as.big.matrix(solve(B)) %*% (q-r))})
+# 
+# fast_ytime
+```
+
+
+
+## Problem 5  
+
+### a. Create a function that computes the proportion of successes in a vector.  Use good programming practices.
+
+```{r compute_prop_of_s, include=T, warning=F}
+
+proportion_of_success <- function(data){
+  count = 0
+  for(i in 1:length(data)){
+    if(data[i] == 1){
+      count = count + 1
+    }
+  }
+  return(count/length(data))
+}
+
+```
+
+### b. Create a matrix to simulate 10 flips of a coin with varying degrees of "fairness" (columns = probability) as follows:
+
+```{r echo=T, include=T, warning=F}
+
+set.seed(12345)
+P4b_data <- matrix(rbinom(10, 1, prob = (31:40)/100), nrow = 10, ncol = 10, byrow = FALSE)
+
+```
+
+### c. Use your function in conjunction with apply to compute the proportion of success in P4b_data by column and then by row.
+
+```{r use_function,include=T, warning=F}
+
+p_col <- apply(P4b_data, 2, proportion_of_success)
+p_col
+p1 <- sum(p_col)/length(p_col)
+p1
+
+p_row <- apply(P4b_data, 1, proportion_of_success)
+p_row
+p2 <- sum(p_row)/length(p_row)
+p2
+```
+
+The apply function takes the data and goes through every column and finds proportion of success of each column. Since the column of the matrix has varying occurrence of success and failure, we get a value < 1. When the apply function takes the data and goes through every row and finds proportion of success of each row, since we have rows with just 1's and 0's in the matrix, the proportion of success of individual rows are either 1 or 0.
+
+
+### d. 
+
+```{r q_binom,include=T, warning=F}
+
+#a function whose input is a probability and output is a vector whose elements are
+#the outcomes of 10 flips of a coin.
+outcome_of_flips <- function(p){
+  outcomes <- qbinom(p, 1, prob = (46:55)/100)
+  return(outcomes)
+}
+
+#a vector of the desired probabilities.
+desired_probabilities <- c(0.2, 0.5, 0.8, 0.5, 0.1, 0.7, 0.5, 0.3, 0.9, 0.8)
+
+#create the matrix we really wanted in part b.
+desired_matrix <- sapply(desired_probabilities, outcome_of_flips)
+
+#Prove this has worked by using the function created in part a to compute and
+#tabulate the appropriate marginal successes.
+mS_col <- apply(desired_matrix, 2, proportion_of_success)
+mS_col
+mS_row <- apply(desired_matrix, 1, proportion_of_success)
+mS_row
+```
+
+## Problem 6
+
+The description of the data was given as "a dataset which has multiple repeated measurements from two devices by thirteen Observers".  Where the device measurements were in columns "dev1" and "dev2".  Reimport that dataset, change the names of "dev1" and "dev2" to x and y and do the following:
+
+```{r data_import, include=T, warning=F}
+#A dataset which has multiple repeated measurements from two devices 
+#(dev1 and dev2) by thirteen Observers.
+observations <- readRDS("~/Downloads/Stat Progr Packages/STAT5014_tdolkar/HW3_data.rds")
+observations <- observations %>% 
+                  arrange(Observer)
+colnames(observations) <- c("observers", "x", "y")
+observations$observers <- as.factor(observations$observers)
+
+```
+
+
+```{r scatterplot, include=T, warning=F}
+s_plot <- function(data,x,y,obs=NULL){
+  par(mfrow = c(1,1))
+  if(is.null(obs)){
+    data %>% 
+      ggplot(aes(x=x,y=y)) + geom_point()
+  }
+  else{
+    data %>% 
+      ggplot(aes(x=x,y=y)) + geom_point() + facet_wrap(observers~.)
+  }
+}
+
+
+```
+
+### a. a single scatter plot of the entire dataset:
+
+```{r single_plot, include=T, warning=F}
+s_plot(observations,observations$x,observations$y)
+```
+### b. separate scatter plot for each observer:
+
+```{r separate_plot, include=T, warning=F}
+lapply(names(observations[,2:3]),function(x)s_plot(observations,observations$x,observations$y,observations$observers))
+```
+
+## Problem 7
 
 Our ultimate goal in this problem is to create an annotated map of the US.  I am giving you the code to create said map, you will need to customize it to include the annotations.
 
-Part a. Get and import a database of US cities and states.  Here is some R code to help:
+### a. Get and import a database of US cities and states.  Here is some R code to help:
 
-```{r get_city_list, echo=T, eval=F, include=T}
-    #we are grabbing a SQL set from here
-    # http://www.farinspace.com/wp-content/uploads/us_cities_and_states.zip
-    #download the files, looks like it is a .zip
-    library(downloader)
-    download("http://www.farinspace.com/wp-content/uploads/us_cities_and_states.zip",dest="us_cities_states.zip")
-    unzip("us_cities_states.zip", exdir="./")
-    
-    #read in data, looks like sql dump, blah
-    library(data.table)
-    states <- fread(input = "./us_cities_and_states/states.sql",skip = 23,sep = "'", sep2 = ",", header = F, select = c(2,4))
-    ### YOU do the CITIES
-    ### I suggest the cities_extended.sql may have everything you need
-    ### can you figure out how to limit this to the 50?
-    
+```{r get_city_list, echo=T, include=T, warning=F}
+#we are grabbing a SQL set from here
+# http://www.farinspace.com/wp-content/uploads/us_cities_and_states.zip
+#download the files, looks like it is a .zip
+download("http://www.farinspace.com/wp-content/uploads/us_cities_and_states.zip",dest="us_cities_states.zip")
+unzip("us_cities_states.zip", exdir="./")
+
+#read in data, looks like sql dump, blah
+states <- fread(input = "./us_cities_and_states/states.sql",skip = 23,sep = "'", sep2 = ",", header = F, select = c(2,4))
+### YOU do the CITIES
+### I suggest the cities_extended.sql may have everything you need
+cities <- fread(input = "./us_cities_and_states/cities_extended.sql",skip = 26,sep = "'", sep2 = ",", header = F, select = c(2,4,6,8,10,12))
+### can you figure out how to limit this to the 50?
+# for(i in 1:nrow(states)){
+#   US_cities.2 <- cities %>%
+#                   filter(V4 == states$V4[i])
+# }
+US_cities <- data.frame()
+
+for(i in 1:nrow(states)){
+  for(j in 1:nrow(cities)){
+    if(cities$V4[j] == states$V4[i]){
+      US_cities <- rbind(US_cities, cities[j])
+    }
+  }
+}
+
 ```
 
-Part b. Create a summary table of the number of cities included by state.
+### b. Create a summary table of the number of cities included by state.
 
-Part c. Create a function that counts the number of occurances of a letter in a string.  The input to the function should be "letter" and "state_name".  The output should be a scalar with the count for that letter.
+```{r summary_cities, include=T, warning=F}
+#count the number of cities in each state
+freq <- US_cities %>%
+                count(V4)
+colnames(states) <- c('state', 'state_code')
 
-Create a for loop to loop through the state names imported in part a.  Inside the for loop, use an apply family function to iterate across a vector of letters and collect the occurance count as a vector.
+#add a column with count of cities for each state
+states <- states %>% add_column(city_in_each_state_freq = freq$n)
 
-```{r echo=T, eval=F, include=T}
-    ##pseudo code
-    letter_count <- data.frame(matrix(NA,nrow=50, ncol=26))
-    getCount <- function(what args){
-        temp <- strsplit(state_name)
-        # how to count??
-        return(count)
-    }
-    for(i in 1:50){
-        letter_count[i,] <- xx-apply(args)
-    }
+#make all state in lower case writing for easier comparison
+states <- states %>% mutate(state = tolower(state))
+
+#take out DC and add it last since it is not really a state.
+capital_city <- states %>% filter(state == "district of columbia")
+states <- subset(states, state != "district of columbia")
+states <- rbind(states, capital_city)
 ```
 
-Part d.
+### c. Create a function that counts the number of occurences of a letter in a string.  The input to the function should be "letter" and "state_name".  The output should be a scalar with the count for that letter.
 
-Create 2 maps to finalize this.  Map 1 should be colored by count of cities on our list within the state.  Map 2 should highlight only those states that have more than 3 occurances of ANY letter in thier name.
+Create a for loop to loop through the state names imported in part a.  Inside the for loop, use an apply family function to iterate across a vector of letters and collect the occurrence count as a vector.
 
+```{r echo=T, include=T, warning=F}
+##pseudo code
+letter_count <- data.frame(matrix(NA,nrow=50, ncol=26))
+getCount <- function(state_name){
+  count = data.frame(matrix(0,nrow=1, ncol=26))
+  letter_in_state <- unlist(strsplit(state_name,""))
+  for(i in letter_in_state){
+    if(i == 'A'||i == 'a'){
+      count[1,1] = sum(str_count(state_name, c("a",'A')))
+    }
+    else if(i == 'B'||i == 'b'){
+      count[1,2] = sum(str_count(state_name, c("b",'B')))
+    }
+    else if(i == 'C'||i == 'c'){
+      count[1,3] = sum(str_count(state_name, c("c",'C')))
+    }
+    else if(i == 'D'||i == 'd'){
+      count[1,4] = sum(str_count(state_name, c("d",'D')))
+    }
+    else if(i == 'E'||i == 'e'){
+      count[1,5] = sum(str_count(state_name, c("e",'E')))
+    }
+    else if(i == 'F'||i == 'f'){
+      count[1,6] = sum(str_count(state_name, c("f",'F')))
+    }
+    else if(i == 'G'||i == 'g'){
+      count[1,7] = sum(str_count(state_name, c("g",'G')))
+    }
+    else if(i == 'H'||i == 'h'){
+      count[1,8] = sum(str_count(state_name, c("h",'H')))
+    }
+    else if(i == 'I'||i == 'i'){
+      count[1,9] = sum(str_count(state_name, c("i",'I')))
+    }
+    else if(i == 'J'||i == 'j'){
+      count[1,10] = sum(str_count(state_name, c("j",'J')))
+    }
+    else if(i == 'K'||i == 'k'){
+      count[1,11] = sum(str_count(state_name, c("k",'K')))
+    }
+    else if(i == 'L'||i == 'l'){
+      count[1,12] = sum(str_count(state_name, c("l",'L')))
+    }
+    else if(i == 'M'||i == 'm'){
+      count[1,13] = sum(str_count(state_name, c("m",'M')))
+    }
+    else if(i == 'N'||i == 'n'){
+      count[1,14] = sum(str_count(state_name, c("n",'N')))
+    }
+    else if(i == 'O'||i == 'o'){
+      count[1,15] = sum(str_count(state_name, c("o",'O')))
+    }
+    else if(i == 'P'||i == 'p'){
+      count[1,16] = sum(str_count(state_name, c("p",'P')))
+    }
+    else if(i == 'Q'||i == 'q'){
+      count[1,17] = sum(str_count(state_name, c("q",'Q')))
+    }
+    else if(i == 'R'||i == 'r'){
+      count[1,18] = sum(str_count(state_name, c("r",'R')))
+    }
+    else if(i == 'S'||i == 's'){
+      count[1,19] = sum(str_count(state_name, c("s",'S')))
+    }
+    else if(i == 'T'||i == 't'){
+      count[1,20] = sum(str_count(state_name, c("t",'T')))
+    }
+    else if(i == 'U'||i == 'u'){
+      count[1,21] = sum(str_count(state_name, c("u",'U')))
+    }
+    else if(i == 'V'||i == 'v'){
+      count[1,22] = sum(str_count(state_name, c("v",'V')))
+    }
+    else if(i == 'W'||i == 'w'){
+      count[1,23] = sum(str_count(state_name, c("w",'W')))
+    }
+    else if(i == 'X'||i == 'x'){
+      count[1,24] = sum(str_count(state_name, c("x",'X')))
+    }
+    else if(i == 'Y'||i == 'y'){
+      count[1,25] = sum(str_count(state_name, c("y",'Y')))
+    }
+    else if(i == 'Z'||i == 'z'){
+      count[1,26] = sum(str_count(state_name, c("z",'Z')))
+    }
+  }
+  return(count)
+}
+for(i in 1:51){
+  letter_count[i,] <- sapply(states$state[i],getCount)
+}
+colnames(letter_count) <- c('A',"B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z")
+```
+
+### d.
+
+Map 1: should be colored by count of cities on our list within the state.  
 
 Quick and not so dirty map:
 
-```{r eval=F, echo=T, include=T}
-    #https://cran.r-project.org/web/packages/fiftystater/vignettes/fiftystater.html
-    library(ggplot2)
-    library(fiftystater)
-    
-    data("fifty_states") # this line is optional due to lazy data loading
-    crimes <- data.frame(state = tolower(rownames(USArrests)), USArrests)
-    # map_id creates the aesthetic mapping to the state name column in your data
-    p <- ggplot(crimes, aes(map_id = state)) + 
-      # map points to the fifty_states shape data
-      geom_map(aes(fill = Assault), map = fifty_states) + 
-      expand_limits(x = fifty_states$long, y = fifty_states$lat) +
-      coord_map() +
-      scale_x_continuous(breaks = NULL) + 
-      scale_y_continuous(breaks = NULL) +
-      labs(x = "", y = "") +
-      theme(legend.position = "bottom", 
-            panel.background = element_blank())
-    
-    p
-    #ggsave(plot = p, file = "HW6_Problem6_Plot_Settlage.pdf")
+```{r map1, echo=T, include=T, warning=F}
+
+#https://cran.r-project.org/web/packages/fiftystater/vignettes/fiftystater.html
+
+library(fiftystater)
+
+data("fifty_states") # this line is optional due to lazy data loading
+#crimes <- data.frame(state = tolower(rownames(USArrests)), USArrests)
+# map_id creates the aesthetic mapping to the state name column in your data
+p <- ggplot(states, aes(map_id = state)) + 
+  # map points to the fifty_states shape data
+  geom_map(aes(fill = city_in_each_state_freq), map = fifty_states) + 
+  expand_limits(x = fifty_states$long, y = fifty_states$lat) +
+  coord_map() +
+  scale_x_continuous(breaks = NULL) + 
+  scale_y_continuous(breaks = NULL) +
+  labs(x = "", y = "") +
+  theme(legend.position = "bottom", 
+        panel.background = element_blank())
+p
+#ggsave(plot = p, file = "HW6_Problem6_Plot_Settlage.pdf")
 ```
+As the state goes from darker shade of blue to lighter, the count of cities in each state increases.
 
+Map 2: should highlight only those states that have more than 3 occurrences of ANY letter in their name.
 
-## Problem 2
+```{r map2, echo=T, include=T, warning=F}
+
+more_than_3 <- apply(letter_count, 1, function(x) if(any(x > 3)) { return(1)} else {return(0)})
+
+states <- cbind(states, more_than_3)
+
+#https://cran.r-project.org/web/packages/fiftystater/vignettes/fiftystater.html
+
+library(fiftystater)
+
+data("fifty_states") # this line is optional due to lazy data loading
+crimes <- data.frame(state = tolower(rownames(USArrests)), USArrests)
+# map_id creates the aesthetic mapping to the state name column in your data
+p <- ggplot(states, aes(map_id = state)) + 
+  # map points to the fifty_states shape data
+  geom_map(aes(fill = more_than_3), map = fifty_states) + 
+  expand_limits(x = fifty_states$long, y = fifty_states$lat) +
+  coord_map() +
+  scale_x_continuous(breaks = NULL) + 
+  scale_y_continuous(breaks = NULL) +
+  labs(x = "", y = "") +
+  theme(legend.position = "bottom", 
+        panel.background = element_blank())
+
+p
+#ggsave(plot = p, file = "HW6_Problem6_Plot_Settlage.pdf")
+```
+The light blue states have more than 3 occurrences of any letter in their name.
+
+## Problem 8
 
 Bootstrapping
-
-Recall the sensory data from five operators:    
-<http://www2.isye.gatech.edu/~jeffwu/wuhamadabook/data/Sensory.dat> 
 
 Sometimes, you really want more data to do the desired analysis, but going back to the "field" is often not an option. An often used method is bootstrapping.  Check out the second answer here for a really nice and detailed description of bootstrapping:
 <https://stats.stackexchange.com/questions/316483/manually-bootstrapping-linear-regression-in-r>.
 
 What we want to do is bootstrap the Sensory data to get non-parametric estimates of the parameters.  Assume that we can neglect item in the analysis such that we are really only interested in a linear model lm(y~operator).
 
-### Part a.  First, the question asked in the stackexchange was why is the supplied code not working.  This question was actually never answered.  What is the problem with the code?  If you want to duplicate the code to test it, use the quantreg package to get the data.
+```{r sensorydata_import, cache=FALSE, include=TRUE, echo=TRUE, warning=F}
+## getting http://www2.isye.gatech.edu/~jeffwu/wuhamadabook/data/Sensory.dat
 
+url <- "http://www2.isye.gatech.edu/~jeffwu/wuhamadabook/data/Sensory.dat"
+sensorydata_raw<- fread(url, data.table = FALSE, fill = TRUE, skip = 2, header = FALSE)
+saveRDS(sensorydata_raw, "sensorydata_raw.RDS")
+#Saves the object in it's native format without the name: When importing, it is easier for us.
+sensorydata_raw <- readRDS("sensorydata_raw.RDS")
+```
+
+```{r sensorydata_baseR, cache=FALSE, include=TRUE, echo=TRUE, warning=F}
+#if the first condition is T, return the index value
+Na <- which(is.na(sensorydata_raw$V6),arr.ind=T)
+df <- cbind(rep(1:10, each = 2), sensorydata_raw[Na,])
+df$V6 <- NULL
+#create a clone data frame of the raw data, to get a better aligned raw data 
+# and not change the original raw data.
+# new_sensorydata_raw <- sensorydata_raw
+sensorydata_raw[Na,] <- df
+colnames(sensorydata_raw) <- c("Item","1","2","3","4","5")
+Operator <- stack(sensorydata_raw[,2:6])
+sensorydata_tidy_br <- data.frame(Item=rep(sensorydata_raw$Item, 5),
+                                  as.character(Operator[,2]), as.numeric(Operator[,1]))
+colnames(sensorydata_tidy_br) <- c('Item', "Operator", "sensorydata")
+sensorydata_tidy_br <- sensorydata_tidy_br[sort(sensorydata_tidy_br$Operator,decreasing=F,
+                                                index.return=T)[[2]],]
+
+```
+
+### Part a.  First, the question asked in the stackexchange was why is the supplied code not working. This question was actually never answered.  What is the problem with the code?If you want to duplicate the code to test it, use the quantreg package to get the data.
+```{r fix_code, include=T, warning=F}
+#1)fetch data from Yahoo
+#AAPL prices
+apple08 <- getSymbols('AAPL', auto.assign = FALSE, from = '2008-1-1', to = 
+"2008-12-31")[,6]
+#market proxy
+rm08<-getSymbols('^ixic', auto.assign = FALSE, from = '2008-1-1', to = 
+"2008-12-31")[,6]
+
+#log returns of AAPL and market
+logapple08<- na.omit(ROC(apple08)*100)
+logrm08<-na.omit(ROC(rm08)*100)
+
+#OLS for beta estimation
+beta_AAPL_08<-summary(lm(logapple08~logrm08))$coefficients[2,1]
+
+#create df from AAPL returns and market returns
+df08<-cbind(logapple08,logrm08)
+
+#added line to refer to variables to fit them in a linear model
+colnames(df08) <- c("logapple08", "logrm08")
+
+set.seed(666)
+Boot_times=1000
+
+#First of all variable 'Boot' is not defined in the code.
+#sd.boot=rep(0,Boot)
+sd.boot=data.frame(matrix(NA,nrow=2, ncol=Boot_times))
+
+#for(i in 1:Boot){
+for(i in 1:Boot_times){
+  
+# nonparametric bootstrap
+bootdata=df08[sample(nrow(df08), size = 251, replace = TRUE),]
+
+#sd.boot[i]= coef(summary(lm(logapple08~logrm08, data = bootdata)))[2,2]
+#since this is just the standard error of betah1 
+
+sd.boot[,i]= coef(summary(lm(logapple08~logrm08, data = bootdata)))[,1]
+#this will keep record of 1000 value of betah0, betah1 instead of std. error
+}
+```
+
+ The problematic parts of the original code has been commented out in between codes with explanation as to what it was doing and it follows up with what the corrections in the code will do to fix it.
+ 
+ 
 ### Part b. Bootstrap the analysis to get the parameter estimates using 100 bootstrapped samples.  Make sure to use system.time to get total time for the analysis.  You should probably make sure the samples are balanced across operators, ie each sample draws for each operator.
+
+```{r bootstrap_analysis,include=T, warning=F}
+library(boot)
+# function to obtain parameter estimate from the data
+ parameter_estimates <- function(formula, data, indices) {
+  d <- data[indices,] # allows boot to select sample
+  fit <- lm(formula, data=d)
+  return(summary(fit)$coefficients)
+}
+# bootstrapping with 100 replications
+naive_time <- system.time({results <- boot(data=sensorydata_tidy_br, statistic=parameter_estimates,
+   R=100, formula=sensorydata~Operator)})
+
+# view results
+results
+naive_time
+```
 
 ### Part c. Redo the last problem but run the bootstraps in parallel (`cl <- makeCluster(8)`), don't forget to `stopCluster(cl)`).  Why can you do this?  Make sure to use system.time to get total time for the analysis.
 
+```{r bootstrap_in_parallel,include=T, warning=F}
+
+# function to obtain parameter estimate from the data
+ parameter_estimates <- function(formula, data, indices) {
+  d <- data[indices,] # allows boot to select sample
+  fit <- lm(formula, data=d)
+  return(summary(fit)$coefficients)
+}
+# bootstrapping with 100 replications
+parallel_time <- system.time({results <- boot(data=sensorydata_tidy_br, statistic=parameter_estimates,
+   R=100, formula=sensorydata~Operator, parallel = "multicore")})
+
+# view results
+results
+
+parallel_time
+
+```
+
 Create a single table summarizing the results and timing from part a and b.  What are your thoughts?
 
-## Problem 3
-
+## Problem 9
 Newton's method gives an answer for a root.  To find multiple roots, you need to try different starting values.  There is no guarantee for what start will give a specific root, so you simply need to try multiple.  From the plot of the function in HW4, problem 8, how many roots are there?
 
-Create a vector (`length.out=1000`) as a "grid" covering all the roots and extending +/-1 to either end.  
+Create a vector (`length.out=1000`) as a "grid" covering all the roots and extending +/-1 to either end.
+
+```{r Newton_Method, include=T, warning=F}
+N_method <- function(x1 = -5){
+  #function takes in a first approximation of the root x0 of the function 3^x-sin(x)+cos(5*x)
+  #function uses Newton's method of approximate the root of the function
+  #function terminates when successive estimates are within 1e-04 of each other
+  seq <- 100
+  x <- double(0)
+  x[1] <-  x1
+  # f <- 3^x- sin(x) + cos(5*x)
+  # f_diff <- 3^x * log(3) - cos(x) - sin(5 * x) * 5
+  for(i in 2:seq){
+    if(3^x[i-1] * log(3) - cos(x[i-1]) - sin(5 * x[i-1]) * 5 == 0){
+      stop("choose a new starting place")
+    }
+    x[i] <- x[i-1] - ((3^x[i-1]- sin(x[i-1]) + cos(5*x[i-1]))/
+                        (3^x[i-1] * log(3) - cos(x[i-1]) - sin(5 * x[i-1]) * 5))
+    if (abs(x[i]-x[i-1])<1e-04){
+      break
+    }
+  }
+  #For the initial estimate of:
+  print(x[1])
+  #Xn approaches 0 at: 
+  print(tail(x,1))
+  return(plot(x, type = 'b', col = 'purple'))
+}
+```
+
+
+```{r Newton_M_call, include=T, warning=F}
+# we have: 
+#f <- expression(3^x- sin(x) + cos(5*x))
+init_x <- c(-28, -24, -18, -6)
+par(mfrow = c(2,2))
+for(i in 1:length(init_x)){
+  p = N_method(init_x[i])
+}
+p
+```
+
+This is the result from HW4, problem 8.
 
 ### Part a.  Using one of the apply functions, find the roots noting the time it takes to run the apply function.
 
+```{r Nmethod_apply, include=T, warning=F}
+
+N_time <- system.time(lapply(init_x,N_method))
+
+N_time
+```
+
+I tried it with a vector(length.out = 1000) as a "grid" but to save compile time, I reproduced the same result with apply function.
+
 ### Part b.  Repeat the apply command using the equivelant parApply command.  Use 8 workers.  `cl <- makeCluster(8)`.
+
+```{r Nmethod_apply_with_cluster, include=T, warning=F}
+init_x <- c(-28, -24, -18, -6)
+
+system.time({
+  # Create a cluster via makeCluster
+  cl <- makeCluster(8)
+  # Parallelize
+  parLapply(cl, init_x, N_method)})
+
+
+# Stop the cluster
+stopCluster(cl)
+```
 
 Create a table summarizing the roots and timing from both parts a and b.  What are your thoughts?
 
 
 
 
-## Problem 9
+## Problem 10
 
 Finish this homework by pushing your changes to your repo.
 
