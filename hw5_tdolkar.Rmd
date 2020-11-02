@@ -1,0 +1,122 @@
+---
+title: "hw5_tdolkar"
+author: "Tsering Dolkar"
+date: "10/26/2020"
+output: pdf_document
+latex_engine: xelatex
+html_document:
+df_print: paged
+header-includes: \usepackage{tikz,pgfplots} \usepackage{fancyhdr}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'H', fig.align = "center", echo = TRUE, include = FALSE, eval = TRUE, cache = TRUE)
+library(data.table)
+library(tidyverse)
+library(ggplot2)
+library(qwraps2)
+library(car)
+library(multipanelfigure)
+library(olsrr)
+```
+
+## Problem 1. 
+Worked through the Swirl ``Exploratory\_Data\_Analysis'' lesson parts 1-10.
+
+## Problem 2. 
+Created the Rmd file
+
+## Problem 3. 
+```{r data_import, cache=FALSE, include=TRUE, echo=TRUE, warning=F}
+## getting http://databank.worldbank.org/data/download/Edstats_csv.zip
+
+#read in data, looks like csv dump, blah
+data_raw <- read.csv('EdStatsData.csv', sep = ",")
+```
+
+```{r correct_header, include=T}
+destroyX = function(es) {
+  f = es
+  for (i in c(1:length(f))){ #for each value in Year
+    if (startsWith(f[i], "X") == TRUE)  { #if starts with 'X' ..
+      f[i] <- substr(f[i], 2, 100) #get rid of it
+    }
+  }
+  return(f)
+}
+```
+
+```{r tidy_data, include=T}
+tidy_data <- data_raw %>% 
+  gather(key = "Year", value = "Data", 5:70)
+tidy_data$Year <- destroyX(tidy_data$Year)
+tidy_data <- na.omit(tidy_data)
+completeDataset_dataPoints <- dim(data_raw)
+completeDataset_dataPoints
+cleanedDataset_dataPoints <- dim(tidy_data)
+cleanedDataset_dataPoints
+
+chosenCountries <- tidy_data %>% 
+  filter(Country.Code == "EMU"| Country.Code == "ECS")
+summary_stat <- by(chosenCountries, chosenCountries$Indicator.Name, summary)
+length(summary_stat)
+head(summary_stat)
+```
+
+## Problem 4.
+```{r data,include=T}
+options(scipen = 0)
+options(digits = 2)
+
+par(mfrow=c(2,3))
+
+lmfit <- lm(chosenCountries$Data ~ chosenCountries$Year)
+
+plot(fitted(lmfit),residuals(lmfit),pch=16,xlab = "Predicted Value", ylab = "Residual")
+abline(h = 0)
+
+plot(fitted(lmfit),rstudent(lmfit),pch=16,xlab = "Predicted Value", ylab = "Rstudent")
+
+leveragePlots(lmfit, pch = 16, xlab="Leverage", ylab = "Rstudent")#look at it again
+
+qqnorm(residuals(lmfit), ylab = "Residuals")
+qqline(residuals(lmfit))
+
+lmfitw <- lm(abs(residuals(lmfit)) ~ chosenCountries$Year)
+w <- 1/abs(fitted(lmfitw))
+yw <- w^0.5*chosenCountries$Data
+plot(fitted(lmfitw), yw,pch=16,xlab = "Predicted Value", ylab = "Weight")
+
+
+plot(chosenCountries$Data, cooks.distance(lmfit),pch=16,xlab = "Observation", ylab = "Cook's D",type = "b")
+```
+
+## Problem 4.
+```{r ggplot_version, include=T}
+
+theme_set(theme_bw())  # pre-set the bw theme.
+
+p <- chosenCountries%>% 
+  ggplot(aes(x=Year, y=Data, color=Country.Name)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, size = 8,
+                                   vjust = 0.6))
+plot(p)
+
+p <- chosenCountries%>% 
+  ggplot(aes(x=fitted(lmfit), y=residuals(lmfit), color=Country.Name)) +
+  geom_point() +
+  geom_hline(yintercept = 0) +
+  labs(x = "Predicted Value", y = "Residual") +
+  theme(axis.text.x = element_text(angle = 90, size = 8,
+                                   vjust = 0.6))
+plot(p)
+
+p <- chosenCountries%>% 
+  ggplot(aes(x=fitted(lmfit), y=rstudent(lmfit), color=Country.Name)) +
+  geom_point() +
+  labs(x = "Predicted Value", y = "Rstudent") +
+  theme(axis.text.x = element_text(angle = 90, size = 8,
+                                   vjust = 0.6))
+plot(p)
+```
