@@ -59,6 +59,8 @@ cleanedDataset_dataPoints
 
 chosenCountries <- tidy_data %>% 
   filter(Country.Code == "EMU"| Country.Code == "ECS")
+numUnique_indicator <- unique(chosenCountries$Indicator.Name)
+length(numUnique_indicator)
 summary_stat <- by(chosenCountries, chosenCountries$Indicator.Name, summary)
 length(summary_stat)
 head(summary_stat)
