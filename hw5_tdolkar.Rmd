@@ -89,7 +89,9 @@ yw <- w^0.5*chosenCountries$Data
 plot(fitted(lmfitw), w, pch=16, xlab = "Predicted Value", ylab = "Weight")
 
 
-plot(chosenCountries$Data, cooks.distance(lmfit),pch=16, xlab = "Observation", ylab = "Cook's D", type = c("b"))
+plot(chosenCountries$Data, cooks.distance(lmfit), xlab = "Observation", ylab = "Cook's D", type = "h")
+points(chosenCountries$Data, cooks.distance(lmfit), pch = 16)
+
 ```
 
 ## Problem 5.
@@ -128,8 +130,8 @@ p5 <-ggplot(chosenCountries, aes(x=fitted(lmfit), y= w, color="red")) +
                                    vjust = 0.6),legend.position = "none")
 
 p6 <-ggplot(chosenCountries, aes(x=Data, y= cooks.distance(lmfit), color="red")) +
-     geom_line() +
      geom_point() +
+     geom_segment(aes(x=Data, y = 0, xend = Data, yend= cooks.distance(lmfit))) +
      geom_hline(yintercept = 0) +
      labs(x = "Observation", y = "Cook's D") +
      theme(axis.text.x = element_text(angle = 90, size = 5,
